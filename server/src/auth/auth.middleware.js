@@ -1,0 +1,49 @@
+import jwt from 'jsonwebtoken';
+import { config } from '../config/configuration.js';
+import { prisma } from '../db/postgres.js';
+
+export function requireAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) return res.status(401).json({ message: 'Missing Authorization header' });
+
+  try {
+    const decoded = jwt.verify(token, config.jwt.accessSecret);
+    req.userId = decoded.sub;
+    req.userRole = decoded.role;
+    next();
+  } catch {
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
+}
+
+export function requireRole(...roles) {
+  return async (req, res, next) => {
+    try {
+      if (!req.userId) return res.status(401).json({ message: 'Unauthenticated' });
+      const user = await prisma.user.findUnique({ where: { id: req.userId } });
+      if (!user) return res.status(401).json({ message: 'User not found' });
+      req.user = user;
+
+      if (roles.length && !roles.includes(user.role)) {
+        return res.status(403).json({ message: 'Forbidden' });
+      }
+      next();
+    } catch {
+      res.status(500).json({ message: 'Auth error' });
+    }
+  };
+}
+
+export function optionalRefreshContext(req, _res, next) {
+  try {
+    const rtCookie = req.cookies?.[config.cookies.name];
+    if (!rtCookie) return next();
+    const decoded = jwt.verify(rtCookie, config.jwt.refreshSecret);
+    req.userIdFromRefresh = decoded.sub;
+  } catch {
+    // ignore
+  }
+  next();
+}
+

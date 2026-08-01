@@ -1,0 +1,26 @@
+import { Router } from 'express';
+import { requireAuth, requireRole } from '../auth/auth.middleware.js';
+import { RentalsController } from './rentals.controller.js';
+
+export const rentalsRouter = Router();
+
+// Customer routes (requires authentication)
+rentalsRouter.post('/', requireAuth, requireRole('customer', 'admin'), RentalsController.create);
+rentalsRouter.post('/reserve', requireAuth, requireRole('customer', 'admin'), RentalsController.reserve);
+rentalsRouter.get('/my-rentals', requireAuth, requireRole('customer', 'admin'), RentalsController.getMyRentals);
+rentalsRouter.get('/active', requireAuth, requireRole('customer', 'admin'), RentalsController.getActiveRental);
+rentalsRouter.post('/validate-coupon', requireAuth, RentalsController.validateCoupon);
+
+// Admin only routes
+rentalsRouter.get('/orders', requireAuth, requireRole('admin'), RentalsController.listOrders);
+rentalsRouter.patch('/orders/:id/status', requireAuth, requireRole('admin'), RentalsController.updateOrderStatus);
+
+// General routes (customers see their own, admins see all)
+rentalsRouter.get('/', requireAuth, requireRole('customer', 'admin'), RentalsController.list);
+rentalsRouter.get('/:id', requireAuth, requireRole('customer', 'admin'), RentalsController.getOne);
+
+// Other Admin only routes
+rentalsRouter.patch('/:id/status', requireAuth, requireRole('admin'), RentalsController.updateStatus);
+rentalsRouter.post('/create-order', requireAuth, requireRole('admin'), RentalsController.createOrder);
+rentalsRouter.post('/:id/generate-pdf', requireAuth, requireRole('customer', 'admin'), RentalsController.generatePDF);
+rentalsRouter.get('/:id/download-pdf', requireAuth, requireRole('customer', 'admin'), RentalsController.downloadPDF);

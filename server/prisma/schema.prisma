@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+}
+
+model User {
+  id                     String    @id @default(cuid())
+  email                  String    @unique
+  name                   String
+  role                   String    @default("customer") // "customer" or "admin"
+  passwordHash           String
+  refreshTokenHash       String?
+  isEmailVerified        Boolean   @default(false)
+  emailVerificationToken String?
+  passwordResetToken     String?
+  passwordResetExpires   DateTime?
+  
+  // Default profile-level Address
+  addressLine1           String?
+  addressLine2           String?
+  city                   String?
+  state                  String?
+  pincode                String?
+  
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  // Relations
+  orders                 Order[]
+  rentals                Rental[]
+
+  @@map("users")
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  name          String
+  description   String   @default("")
+  images        String[] @db.Text
+  isRentable    Boolean  @default(true)
+  stock         Int      @default(0)
+  availableStock Int     @default(0)
+  reservedStock Int      @default(0)
+  pricePerDay   Decimal  @db.Decimal(10,2)
+  category      String   @default("")
+  brand         String   @default("")
+  model         String   @default("")
+  condition     String   @default("Good") // New, Good, Fair, Poor
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  rentals       Rental[]
+  
+  @@map("products")
+}
+
+model Order {
+  id                String       @id @default(cuid())
+  userId            String       // PostgreSQL user ID reference
+  userEmail         String
+  userName          String
+  subtotal          Decimal      @db.Decimal(10, 2)
+  gstAmount         Decimal      @db.Decimal(10, 2)
+  deliveryFee       Decimal      @db.Decimal(10, 2)
+  totalAmount       Decimal      @db.Decimal(10, 2)
+  couponCode        String?
+  couponDiscount    Decimal?     @db.Decimal(10, 2)
+  status            OrderStatus  @default(PENDING_PAYMENT)
+  reservedUntil     DateTime?
+  razorpayPaymentId String?      @unique
+  razorpayOrderId   String?      @unique
+  fulfillmentMethod String       @default("PICKUP") // PICKUP or DELIVERY
+  addressLine1      String?
+  addressLine2      String?
+  city              String?
+  state             String?
+  pincode           String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  // Relations
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rentals           Rental[]
+
+  @@map("orders")
+}
+
+model Rental {
+  id          String      @id @default(cuid())
+  userId      String      // PostgreSQL user ID reference
+  userEmail   String      // Store email for easier queries
+  userName    String      // Store name for display
+  productId   String
+  orderId     String
+  startDate   DateTime
+  endDate     DateTime
+  totalDays   Int
+  quantity    Int         @default(1)
+  pricePerDay Decimal     @db.Decimal(10,2)
+  totalPrice  Decimal     @db.Decimal(10,2)
+  status      RentalStatus @default(RESERVED)
+  pickupDate  DateTime?
+  returnDate  DateTime?
+  notes       String      @default("")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // Relations
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  @@map("rentals")
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+}
+
+enum RentalStatus {
+  RESERVED
+  PENDING     // Order placed, pending payment/approval
+  CONFIRMED   // Order confirmed/approved by admin
+  PICKED_UP   // Item picked up by customer
+  RETURNED    // Item returned back
+  CANCELLED   // Reservation cancelled
+  OVERDUE     // Rental period exceeded, not yet returned
+}
