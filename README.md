@@ -14,51 +14,21 @@
 
 </div>
 
-## 👥 **Team Soul_Society**
-
-<table align="center">
-<tr>
-<td align="center"><strong>🎯 Teijas Saini</strong><br><em>Team Lead</em></td>
-<td align="center"><strong>💻 Rushil Jain</strong><br><em>Developer</em></td>
-<td align="center"><strong>⚡ Vikash</strong><br><em>Developer</em></td>
-<td align="center"><strong>🔧 Nitish Choubey</strong><br><em>Developer</em></td>
-</tr>
-</table>
-
----
-
 ## 📌 **Project Overview**
 
-**SmartRent** is a comprehensive full-stack rental management platform that simplifies how businesses and customers interact in the rental ecosystem. It provides real-time inventory management, seamless booking experiences, secure payments, and high-performance administration analytics.
-
-### **Video Link**
-🎥 [Watch the project demo video](https://youtu.be/l3mLkUDyNRA)
+**SmartRent** is a production-ready, full-stack rental management application designed to simplify booking workflows, enforce inventory constraints, and aggregate dashboard insights. Built as a decoupled client-server architecture, it links a highly responsive React frontend with an Express API backend using PostgreSQL via Prisma ORM.
 
 ---
 
-## 🛠️ **Technology Stack**
+## 🌐 **Live Demo**
 
-<div align="center">
+*   🔗 **Frontend URL**: [https://smart-rent-fawn.vercel.app](https://smart-rent-fawn.vercel.app)
+*   🔗 **Backend API Health**: [https://smartrent-backend-0sin.onrender.com/health](https://smartrent-backend-0sin.onrender.com/health)
 
-### **Frontend Ecosystem**
-![React](https://img.shields.io/badge/React%2019.1.1-61DAFB?style=flat&logo=react&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite%207.1.0-646CFF?style=flat&logo=vite&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS%203.4-06B6D4?style=flat&logo=tailwindcss&logoColor=white)
-![React Router](https://img.shields.io/badge/React%20Router%207.8-CA4245?style=flat&logo=reactrouter&logoColor=white)
-
-### **Backend Infrastructure**
-![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=node.js&logoColor=white)
-![Express](https://img.shields.io/badge/Express%205.1-000000?style=flat&logo=express&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white)
-![Prisma](https://img.shields.io/badge/Prisma%206.13-2D3748?style=flat&logo=prisma&logoColor=white)
-
-### **Development & Tools**
-![JWT](https://img.shields.io/badge/JWT-000000?style=flat&logo=jsonwebtokens&logoColor=white)
-![Razorpay](https://img.shields.io/badge/Razorpay-02042B?style=flat&logo=razorpay&logoColor=white)
-![Axios](https://img.shields.io/badge/Axios-5A29E4?style=flat&logo=axios&logoColor=white)
-![ESLint](https://img.shields.io/badge/ESLint-4B32C3?style=flat&logo=eslint&logoColor=white)
-
-</div>
+### 🔐 **Default Admin Credentials**
+To check out the administrative features (Metrics, Reports, Catalog CRUD, Order Lifecycle):
+*   **Email**: `admin@smartrent.com`
+*   **Password**: `admin123`
 
 ---
 
@@ -68,8 +38,8 @@
 
 | 🔐 **Authentication & Security** | 🏪 **Product Management** | 💳 **Payment Integration** |
 |:---:|:---:|:---:|
-| JWT-based authentication | Real-time inventory tracking | Secure Razorpay integration |
-| Role-based access control | Catalog CRUD & stock management | GST 18% & Fare calculation |
+| JWT-based authentication | Real-time inventory tracking | Secure Razorpay checkout |
+| Role-based access control (RBAC) | Catalog CRUD & stock variables | GST 18% & Fare calculator |
 | OTP verification with local fallback logs | Dynamic images & availability checks | Automated invoice PDF downloads |
 
 | 📅 **Booking System** | 📊 **Analytics & Reports** | 🔔 **Notifications** |
@@ -82,142 +52,107 @@
 
 ---
 
-## 📁 **Project Architecture**
+## 🏛️ **Deep-Dive Architecture & Design Patterns**
 
+### 1. Concurrency Control & Pessimistic Locking (`FOR UPDATE`)
+To prevent overbooking when multiple customers check out the same product simultaneously, SmartRent uses a pessimistic row locking strategy:
+*   Before validating stock levels, the database rows for target products are locked using:
+    ```sql
+    SELECT * FROM "products" WHERE id IN (...) ORDER BY id FOR UPDATE
+    ```
+*   **Deadlock Prevention**: Product IDs are sorted alphabetically before executing the transaction to ensure locks are always acquired in the same sequential order, making deadlocks mathematically impossible.
+*   **Optimized Lock Boundaries**: Row locks are committed immediately after creating the reservation. They are **not** held during external Razorpay HTTP payment gateway requests, avoiding connection pool exhaustion.
+
+### 2. Transparent JWT Token Rotation
+The frontend handles session management silently using an Axios response interceptor in `client/src/lib/api.js`. If a request fails with a `401 Unauthorized` token expiry error:
+1.  The request queue is paused.
+2.  A POST request is sent to `/auth/refresh` sending the secure HttpOnly cookie.
+3.  On success, the client replaces the authorization headers and replays original user requests transparently.
+
+### 3. Database Keep-Alive Health Check
+To resolve cold starts on serverless database tiers (Aiven/Neon) and Render's free tier, the backend `/health` endpoint is configured to perform a query:
+```javascript
+await prisma.$queryRaw`SELECT 1`;
 ```
-SmartRent/
- │
- ├── client/
- │   ├── src/
- │   │   ├── components/            ← CustomerNav, ProtectedRoute
- │   │   ├── lib/api.js             ← Axios client + JWT interceptors
- │   │   ├── App.jsx                ← Routing configuration
- │   │   └── App/
- │   │       ├── auth/              ← Login & Signup
- │   │       ├── customer/          ← Products, Checkout, Rentals, Profile
- │   │       └── admin/             ← Dashboard, Users, Products, Reports
- │
- └── server/
-     ├── src/
-     │   ├── auth/                  ← Login, signup & OTP logic
-     │   ├── users/                 ← User and Profile API
-     │   ├── products/              ← Product inventory controls
-     │   ├── rentals/               ← PDF invoices & coupon validator
-     │   ├── reports/               ← High-performance aggregations (groupBy)
-     │   └── notifications/         ← Status change email dispatchers
-```
+By setting up an external pinger (like `cron-job.org`) to hit this endpoint every 5 minutes, both the Render server and the database are kept awake.
+
+### 4. Background Expiry Cron Service
+If a customer leaves the checkout window without paying, a background `setInterval` cron job scans for `PENDING_PAYMENT` orders. If the reservation window expires, it atomically increments `availableStock` and decrements `reservedStock` to release the items back to the store.
 
 ---
 
-## 🚀 **Quick Start Guide**
+## 🔌 **Key API Endpoints**
+
+| Method | Endpoint | Access | Description |
+|:---:|:---|:---:|:---|
+| `POST` | `/auth/register` | Public | Register user, triggers terminal OTP |
+| `POST` | `/auth/verify-email` | Public | Validate OTP code to activate account |
+| `POST` | `/auth/login` | Public | Logs in user, returns `accessToken` |
+| `GET` | `/products` | Public | List paginated catalog products |
+| `POST` | `/rentals/reserve` | Customer | Creates checkout reservation & locks stock |
+| `POST` | `/payments/razorpay/verify` | Customer | Validates transaction signature |
+| `GET` | `/rentals/:id/pdf` | User/Admin | Generates and downloads PDF invoices |
+| `GET` | `/reports/analytics` | Admin | Fetches category/revenue metrics |
+
+---
+
+## ⚙️ **Quick Start & Setup Guide**
 
 ### **📋 Prerequisites**
-```bash
-Node.js >= 18.0.0
-PostgreSQL >= 13.0
-npm >= 8.0.0
-```
+*   Node.js >= 18.0.0
+*   PostgreSQL >= 13.0
+*   npm >= 8.0.0
 
-### **⚙️ Setup Steps**
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/tojo04/SmartRent.git
-   cd SmartRent
-   ```
-
-2. **Configure Backend Environment**
-   ```bash
-   cd server
-   cp config.example.env .env
-   # Edit .env and supply your POSTGRES_URL
-   npm install
-   ```
-
-3. **Migrate and Seed Database**
-   ```bash
-   npm run prisma:generate
-   npm run prisma:migrate
-   npm run reset            # Clears old tables
-   npm run seed:admin       # Creates default super-admin (admin@smartrent.com / admin123)
-   npm run seed:products    # Seeds mock products catalog
-   ```
-
-4. **Configure Frontend Environment**
-   ```bash
-   cd ../client
-   npm install
-   ```
-   Create a `.env` in the `/client` directory:
-   ```env
-   VITE_API_URL=http://localhost:4000
-   ```
-
-### **🚀 Launch Application**
-
-**Start Backend (Port 4000):**
-```bash
-cd server
-npm run dev
-```
-
-**Start Frontend (Port 5173):**
-```bash
-cd client
-npm run dev
-```
-
-**🎉 Access the application:**
-- **Frontend URL:** `http://localhost:5173`
-- **Admin Access:** `admin@smartrent.com` / `admin123`
+### **🛠️ Setup Steps**
+1.  **Clone the Repository**:
+    ```bash
+    git clone https://github.com/rxshil09/SmartRent.git
+    cd SmartRent
+    ```
+2.  **Backend Environment Setup (`/server/.env`)**:
+    Create a `.env` file in the `server` folder with your credentials:
+    ```env
+    POSTGRES_URL=postgresql://postgres:password@localhost:5432/smartrent?schema=public
+    JWT_ACCESS_SECRET=your-access-secret
+    JWT_REFRESH_SECRET=your-refresh-secret
+    ```
+3.  **Migrate & Seed**:
+    ```bash
+    cd server
+    npm install
+    npm run prisma:generate
+    npm run prisma:migrate
+    npm run reset            # Resets all tables
+    npm run seed:admin       # Creates super admin
+    npm run seed:products    # Seeds mock products
+    ```
+4.  **Frontend Environment Setup (`/client/.env`)**:
+    Create a `.env` file in the `client` folder:
+    ```env
+    VITE_API_URL=http://localhost:4000
+    ```
+    Install packages:
+    ```bash
+    cd ../client
+    npm install
+    ```
+5.  **Run Locally**:
+    *   Backend (Port 4000): `npm run dev` inside `server/`
+    *   Frontend (Port 5173): `npm run dev` inside `client/`
 
 ---
 
-## 🎯 **Development Roadmap**
+## 🧪 **CI/CD Pipeline (GitHub Actions)**
 
-<div align="center">
-
-| Phase | Feature | Status |
-|:---:|:---|:---:|
-| **Phase 1** | 🔐 Authentication & Relational Users | ✅ Complete |
-| **Phase 2** | 📦 Product Catalog & Atomic Stock Locking | ✅ Complete |
-| **Phase 3** | 🛒 Shopping Cart & Fulfillment checkout | ✅ Complete |
-| **Phase 4** | 💳 Razorpay Payment gateway integration | ✅ Complete |
-| **Phase 5** | 📊 Aggregated Reports & CSV Exporting | ✅ Complete |
-| **Phase 6** | 🔔 Nodemailer transactional alerts | ✅ Complete |
-| **Phase 7** | 📄 Dynamic PDF invoice downloads | ✅ Complete |
-| **Phase 8** | 🧪 Test Suites & Bug cleanup | ✅ Complete |
-
-</div>
+The repository includes a GitHub Actions CI workflow in `.github/workflows/lint-test.yml`. It runs automatically on any push or pull request to the `main` branch:
+*   **Frontend**: Installs dependencies, runs ESLint (`npm run lint`), and executes Vitest test suites (`npm run test -- --run`).
+*   **Backend**: Installs dependencies and runs `prisma:generate` to guarantee compilation integrity.
 
 ---
 
 ## 📞 **Support & Documentation**
 
-- 📖 **System Architecture Guide:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- ⚙️ **Setup & Installation Guide:** [`docs/SETUP_GUIDE.md`](docs/SETUP_GUIDE.md)
-- 🔌 **REST API & Postman Testing Guide:** [`docs/API_TESTING_GUIDE.md`](docs/API_TESTING_GUIDE.md)
-
----
-
-## 📄 **License**
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-<div align="center">
-
-### **🌟 Star this repository if you found it helpful!**
-
-**Built with ❤️ by Team Soul_Society**
-
-*Transforming the rental industry, one line of code at a time*
-
----
-
-[![GitHub stars](https://img.shields.io/github/stars/tojo04/SmartRent?style=social)](https://github.com/tojo04/SmartRent/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/tojo04/SmartRent?style=social)](https://github.com/tojo04/SmartRent/network/members)
-[![GitHub issues](https://img.shields.io/github/issues/tojo04/SmartRent)](https://github.com/tojo04/SmartRent/issues)
-
-</div>
+Detailed guides are located inside the `docs/` folder:
+*   📖 **System Architecture Guide:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Monorepo structure, relations, CORS, and locking details.
+*   ⚙️ **Setup & Installation Guide:** [`docs/SETUP_GUIDE.md`](docs/SETUP_GUIDE.md) — Detailed environment variables and script definitions.
+*   🔌 **REST API & Postman Testing Guide:** [`docs/API_TESTING_GUIDE.md`](docs/API_TESTING_GUIDE.md) — Route body samples, Postman variable extractions, and token handling.
