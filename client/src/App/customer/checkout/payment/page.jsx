@@ -64,7 +64,7 @@ const PaymentPage = () => {
         prefill: { 
           name: user?.name, 
           email: user?.email,
-          contact: (item?.deliveryAddress?.phoneNumber || item?.invoiceAddress?.phoneNumber || '')
+          contact: (cartItem?.deliveryAddress?.phoneNumber || cartItem?.invoiceAddress?.phoneNumber || '')
             .replace(/\D/g, '').slice(-10)
         },
         modal: {
