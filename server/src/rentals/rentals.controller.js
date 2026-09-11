@@ -37,7 +37,17 @@ export const RentalsController = {
   // Create a new rental (customer)
   create: async (req, res) => {
     try {
-      const { productId, startDate, endDate, notes } = req.body;
+      const { 
+        productId, 
+        startDate, 
+        endDate, 
+        notes, 
+        razorpayPaymentId, 
+        razorpayOrderId, 
+        razorpaySignature, 
+        deliveryAddress, 
+        deliveryMethod 
+      } = req.body;
       const user = req.user;
       
       if (!productId || !startDate || !endDate) {
@@ -53,7 +63,12 @@ export const RentalsController = {
         productId,
         startDate,
         endDate,
-        notes
+        notes,
+        razorpayPaymentId,
+        razorpayOrderId,
+        razorpaySignature,
+        deliveryAddress,
+        deliveryMethod
       });
       
       console.log(`📝 Rental created: ${user.email} -> ${rental.product?.name}`);

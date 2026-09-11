@@ -6,32 +6,47 @@ import crypto from 'crypto';
 export const PaymentsController = {
   createRazorpayOrder: async (req, res) => {
     try {
-      const { orderId } = req.body;
-      if (!orderId) {
-        return res.status(400).json({ message: 'OrderId is required' });
-      }
-
-      // Fetch order details from database
-      const order = await prisma.order.findUnique({
-        where: { id: orderId }
-      });
-      if (!order) {
-        return res.status(404).json({ message: 'Order not found' });
-      }
-
-      const amount = Number(order.totalAmount);
-      const razorpayOrder = await PaymentsService.createRazorpayOrder(amount);
+      const { orderId, amount: directAmount } = req.body;
       
-      // Update our order with the Razorpay order ID
-      await prisma.order.update({
-        where: { id: orderId },
-        data: { razorpayOrderId: razorpayOrder.id }
-      });
+      if (!orderId && !directAmount) {
+        return res.status(400).json({ message: 'OrderId or amount is required' });
+      }
+
+      let amount;
+      let razorpayOrderId;
+
+      if (orderId) {
+        // Fetch order details from database
+        const order = await prisma.order.findUnique({
+          where: { id: orderId }
+        });
+        if (!order) {
+          return res.status(404).json({ message: 'Order not found' });
+        }
+
+        amount = Number(order.totalAmount);
+        const razorpayOrder = await PaymentsService.createRazorpayOrder(amount);
+        razorpayOrderId = razorpayOrder.id;
+        
+        // Update our order with the Razorpay order ID
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { razorpayOrderId: razorpayOrder.id }
+        });
+      } else {
+        // Direct amount checkout (single product checkout page)
+        amount = Number(directAmount);
+        if (isNaN(amount) || amount <= 0) {
+          return res.status(400).json({ message: 'Invalid amount' });
+        }
+        const razorpayOrder = await PaymentsService.createRazorpayOrder(amount);
+        razorpayOrderId = razorpayOrder.id;
+      }
 
       res.json({
-        orderId: razorpayOrder.id,
-        amount: razorpayOrder.amount,
-        currency: razorpayOrder.currency,
+        orderId: razorpayOrderId,
+        amount: Math.round(amount * 100), // amount in paise for Razorpay frontend
+        currency: 'INR',
         key: process.env.RAZORPAY_KEY_ID,
       });
     } catch (error) {

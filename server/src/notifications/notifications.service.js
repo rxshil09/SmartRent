@@ -33,7 +33,8 @@ class NotificationsService {
       return true;
     } catch (error) {
       console.error('Email sending failed:', error);
-      throw new Error('Failed to send email notification');
+      // Return false instead of throwing so email errors do not crash checkout or signup
+      return false;
     }
   }
 

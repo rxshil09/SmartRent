@@ -1,155 +1,122 @@
-# 🏛️ SmartRent Project Architecture & Engineering Document
+# 🏛️ SmartRent Master System Architecture
 
-This document provides a comprehensive technical overview of SmartRent’s system design, monorepo structure, database schema, concurrency locking, and architectural upgrades.
+This document serves as the **Master Architecture Specification** for SmartRent, providing a high-level overview of system design, technology stack, concurrency models, security patterns, and financial calculation engines.
 
----
-
-## 📁 1. Monorepo Structure & Networking
-
-SmartRent is structured as a decoupled client-server repository:
-
-```
-SmartRent/
- │
- ├── client/                   # Frontend React SPA (Vite, Port 5173)
- │   ├── src/
- │   │   ├── App/
- │   │   │   ├── auth/         # JWT Login & verification views
- │   │   │   ├── customer/     # Store, checkout, profile and history panels
- │   │   │   └── admin/        # CRUD inventories, order lifecycles and analytics
- │   │   ├── components/       # Shared UI buttons, Navbars, and charts
- │   │   └── lib/api.js        # Central Axios instance with JWT interceptors
- │
- └── server/                   # Backend Express API Service (Port 4000)
-     ├── src/
-     │   ├── auth/             # OTP verifications and cryptographic password hooks
-     │   ├── db/               # PostgreSQL Prisma client instance
-     │   ├── rentals/          # Invoice generation and inventory locks
-     │   ├── reports/          # Optimized analytics reporting engines
-     │   └── app.module.js     # Express routes and CORS registry
-     ├── prisma/
-     │   └── schema.prisma     # Relational database models
-```
-
-### 🌐 Cross-Origin Communication & CORS
-The frontend and backend communicate via JSON REST APIs. Express permits cross-port cookie transmission by defining explicit origins:
-```javascript
-app.use(cors({
-  origin: 'http://localhost:5173',
-  credentials: true
-}));
-```
-
-### 🔑 Transparent JWT Access Token Rotation
-The client maintains authorization in memory via an Axios interceptor registered in `client/src/lib/api.js`. 
-If a request encounters a `401 Unauthorized` token expiration response:
-1. The request queue is paused.
-2. A silent POST request is made to `/auth/refresh` (transmitting the secure, HttpOnly `refreshToken` cookie).
-3. On success, the client replaces the invalid authorization headers and replays the original requests transparently.
+> 📚 **Specialized Technical Documentation Hub**:
+> * 📮 **[API & Postman Testing Guide](POSTMAN_TESTING_GUIDE.md)** — Complete API endpoint specifications, Postman collection setup, sequence diagrams, and sample payloads.
+> * 📁 **[Monorepo Architecture Guide](MONOREPO_ARCHITECTURE.md)** — Complete directory layout, module mappings, React SPA router, and request/response flowcharts.
+> * 🛠️ **[Development & Scripts Guide](DEV_SCRIPTS_GUIDE.md)** — Setup guide, script reference (`seed-admin.js`, `seed-products.js`, `reset-db.js`, `verify-setup.js`), and `.env` specifications.
+> * 📊 **[Database Schema & Concurrency Guide](DATABASE_SCHEMA_GUIDE.md)** — PostgreSQL ER diagram, stock state transitions flowchart, SQL pessimistic locking (`FOR UPDATE`), and deadlock elimination.
 
 ---
 
-## 📊 2. Database Schema & Relations
+## 📋 1. System Overview & Technology Stack
 
-SmartRent uses a PostgreSQL database managed via Prisma ORM.
+SmartRent is built as a decoupled, production-grade client-server application engineered for high-concurrency rental transactions, real-time inventory locking, and administrative business insights.
 
-### Entity Relationship Diagram
-```mermaid
-erDiagram
-    User ||--o{ Order : places
-    User ||--o{ Rental : rents
-    Order ||--|{ Rental : contains
-    Product ||--o{ Rental : "booked in"
-
-    User {
-        String id PK
-        String email UK
-        String passwordHash
-        String name
-        String role
-        Boolean isEmailVerified
-    }
-    Product {
-        String id PK
-        String name
-        Int stock
-        Int availableStock
-        Int reservedStock
-        Decimal pricePerDay
-        Boolean isRentable
-    }
-    Order {
-        String id PK
-        String userId FK
-        String status
-        Decimal totalAmount
-        String razorpayOrderId
-        String razorpayPaymentId
-        DateTime reservedUntil
-    }
-    Rental {
-        String id PK
-        String orderId FK
-        String productId FK
-        String userId FK
-        String status
-        DateTime startDate
-        DateTime endDate
-        Int totalDays
-        Int quantity
-    }
+```
++-------------------------------------------------------+
+|                 Client Application                    |
+|        React 19 SPA + Vite 7 + Tailwind CSS           |
+|         Axios (JWT Interceptors) + Recharts           |
++---------------------------+---------------------------+
+                            |
+                     JSON REST APIs
+                 HTTP / Credentials / Cookies
+                            |
++---------------------------v---------------------------+
+|                 Backend API Service                   |
+|       Node.js + Express 5 + Prisma ORM 6              |
+|   Cron Service + PDF Engine + Nodemailer Mailer       |
++---------------------------+---------------------------+
+                            |
+                     PostgreSQL SQL
+             Pessimistic Locking (FOR UPDATE)
+                            |
++---------------------------v---------------------------+
+|                 PostgreSQL Database                   |
+|       Users, Products, Orders, Rentals, Schemas       |
++-------------------------------------------------------+
 ```
 
-### Core Relational Guidelines
-*   **Cascade Deletion**: Deleting a `User` cascades to delete their `Order` and `Rental` records. Deleting an `Order` cascades to delete its child `Rental` line items.
-*   **Restricted Deletions**: Deleting a `Product` is restricted if it is referenced in an existing `Rental` contract.
-*   **Database Indexes**:
-    *   Index on `Order(reservedUntil, status)` to speed up background cron job cleanup sweeps.
-    *   Index on `Order(razorpayOrderId)` and `Order(razorpayPaymentId)` to accelerate payment webhook and verification operations.
+### 🛠️ Technology Stack Summary
+
+| Layer | Primary Technologies | Key Responsibilities |
+| :--- | :--- | :--- |
+| **Frontend Framework** | React `19.x`, Vite `7.x` | SPA rendering, responsive UI, client-side routing |
+| **Styling & UI** | Tailwind CSS `3.4`, PostCSS | Responsive dark/light UI components |
+| **State Management** | React Router `7.x`, React Context API | Global states (`Auth`, `Cart`, `Wishlist`), client routing |
+| **HTTP Client** | Axios `1.11.x` | Centralized API client with silent JWT refresh interceptors |
+| **Backend Framework** | Node.js `>=18.0.0`, Express `5.1.x` | RESTful API server, rate limiting, route controllers |
+| **ORM & Database** | Prisma `6.13.x`, PostgreSQL `>=13.0` | Schema migrations, relational models, SQL locking |
+| **Payments** | Razorpay Node SDK `2.9.x` | Payment order creation, webhook verification (HMAC SHA-256) |
+| **Document Engine** | PDFKit / Puppeteer | Dynamic invoice PDF generation and downloadable streams |
+| **Testing & CI/CD** | Vitest `3.2.x`, ESLint `9.x`, GitHub Actions | Client unit tests, code linting, automated CI workflows |
 
 ---
 
-## 🔒 3. Concurrency, Locking & Stock Safety
+## 🔒 2. Authentication, Security & Session Lifecycle
 
-SmartRent uses pessimistic locking mechanisms to maintain stock integrity during multi-user checkouts:
+SmartRent implements a dual-token authentication workflow with Role-Based Access Control (RBAC):
 
-### A. Hot Path Efficiency & Short Lock Boundaries
-Database row locks are released *before* calling external payment gateway (Razorpay) HTTP APIs. Since Razorpay requests take 200–500ms, holding row locks during this time would block other concurrent checkouts, exhaust connection pools, and lock the database. Immediately committing the order reservation as `PENDING_PAYMENT` releases locks in under 10ms.
+* **Access Token**: Short-lived JWT (15-minute expiration) kept in-memory to mitigate XSS vulnerabilities.
+* **Refresh Token**: Long-lived JWT (7-day expiration) stored in a secure, `HttpOnly`, `SameSite=Lax` cookie.
+* **Silent JWT Rotation Queue (`client/src/lib/api.js`)**: An Axios response interceptor catches `401 Unauthorized` responses, pauses concurrent requests, triggers `/auth/refresh`, updates Bearer headers, and replays failed requests transparently.
+* **Account Security**: Passwords are encrypted using `bcryptjs` (10 salt rounds). Email verification uses a 6-digit OTP code printed directly to server terminal logs in development mode.
 
-### B. Deadlock Elimination (Sorting IDs)
-To prevent circular lock wait states, product rows are sorted alphabetically by their IDs before acquiring locks inside database transactions:
-```javascript
-const sortedIds = items.map(i => i.productId).sort();
-```
-Since concurrent checkouts lock rows in the exact same alphabetical sequence, cyclic waits (deadlocks) are mathematically impossible.
-
-### C. Pessimistic Row Locking (`FOR UPDATE`)
-Rows are locked during checkout checks to ensure availability levels:
-```sql
-SELECT * FROM "products" WHERE id IN (...) ORDER BY id FOR UPDATE
-```
+*(For sequence flowcharts and API request samples, see [POSTMAN_TESTING_GUIDE.md](POSTMAN_TESTING_GUIDE.md)).*
 
 ---
 
-## 🛠️ 4. Chronological Engineering Improvements Log
+## ⚡ 3. Concurrency, Locking & Stock Safety
 
-Below is the record of architectural fixes and feature upgrades applied:
+SmartRent prevents overbooking during multi-user checkouts using database-level pessimistic locking and lexicographical sorting:
 
-### Category & Product Analytics Aggregation
-*   **Problem**: Analytics reports executed sequential iteration counts (N+1 queries) for categories, causing CPU loading bottlenecks.
-*   **Optimization**: Rewrote queries using database-level `groupBy` and `_sum` aggregations, reducing dashboard latency from multi-second loads down to under 10ms.
+1. **Pessimistic Row Locking (`SELECT ... FOR UPDATE`)**: Acquires exclusive row locks inside a `ReadCommitted` transaction before evaluating product availability.
+2. **Deadlock Elimination via Lexicographical Sorting**: Product IDs are sorted alphabetically (`sortedItems.sort((a,b) => a.productId.localeCompare(b.productId))`) prior to lock acquisition. Because all concurrent checkouts lock products in identical global order, cyclic wait states (deadlocks) are mathematically impossible.
+3. **Short Lock Boundaries**: Transactions commit and release database row locks in **< 10ms**, before initiating external payment gateway calls (Razorpay, 200–500ms).
+4. **Automated Expiry (`CronService`)**: A background service runs every 60 seconds. Orders with `status == PENDING_PAYMENT` exceeding 5 minutes (`reservedUntil < NOW()`) are marked `EXPIRED`, automatically returning reserved inventory to `availableStock`.
 
-### Direct Razorpay Checkout & Window Dismissal
-*   **Problem**: Closing the payment overlay modal left frontend loading states spinning infinitely.
-*   **Optimization**: Configured client-side `modal.ondismiss` callbacks in Vite parameters to immediately reset frontend loaders and display feedback to the user on modal close.
+*(For complete sequence diagrams, stock state transition flowcharts, and SQL queries, see [DATABASE_SCHEMA_GUIDE.md](DATABASE_SCHEMA_GUIDE.md)).*
 
-### Pricing Calculations & Indian Service Tax
-*   **Inclusive Day Arithmetic**: Fixed rental period calculations to include both start and end dates: `Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1)`.
-*   **Tax Compliance**: Configured a flat 18% GST calculation on checkout subtotals, alongside variable home delivery charges (₹99 vs. ₹0 for store pickups).
+---
 
-### Database Consolidation (PostgreSQL Transition)
-*   **Pruned MongoDB**: Removed MongoDB and Mongoose dependencies. Migrated all verification schemas, users, and product catalogs to PostgreSQL, enforcing direct relational integrity checks.
+## 💳 4. Order Lifecycle, Pricing & Billing Subsystem
 
-### Automated Stock Return Bug Fix
-*   **Problem**: Returning rentals incremented stock by a hardcoded `1`. If a user checked out a quantity of 3, only 1 unit was returned, permanently leaving 2 units lost from inventory.
-*   **Fix**: Modified endpoints to dynamically return `rental.quantity` to `availableStock` on item cancellation or return, and added guards preventing duplicate adjustments.
+### 📐 Financial Calculation Formulas
+
+#### 1. Inclusive Rental Days Formula
+$$\text{Total Days} = \max\left(1, \left\lceil \frac{\text{EndDate} - \text{StartDate}}{86400000} \right\rceil + 1\right)$$
+
+#### 2. Order Financial Breakdown
+$$\text{Subtotal} = \sum (\text{PricePerDay} \times \text{TotalDays} \times \text{Quantity})$$
+$$\text{Discounted Subtotal} = \max(0, \text{Subtotal} - \text{CouponDiscount})$$
+$$\text{GST Amount (18\%)} = \text{Round}(\text{Discounted Subtotal} \times 0.18)$$
+$$\text{Total Amount} = \text{Discounted Subtotal} + \text{GST Amount} + \text{Delivery Fee}$$
+
+#### 3. Razorpay Signature Verification
+Payment authenticity is verified using HMAC SHA-256 cryptographic signature comparison:
+$$\text{Expected Signature} = \text{HMAC-SHA256}(\text{razorpayOrderId} + "|" + \text{razorpayPaymentId}, \text{RAZORPAY\_KEY\_SECRET})$$
+
+---
+
+## 📈 5. Admin Analytics & Aggregation Engine
+
+To process metrics over large transaction volumes efficiently, SmartRent uses PostgreSQL database-level aggregate queries (`groupBy`, `_sum`, `count`) rather than fetching raw rows into Node.js application memory. This eliminates N+1 query overhead and provides instant dashboard metric calculations.
+
+---
+
+## 🌐 6. Operational Health & CI/CD
+
+* **Database Keep-Alive Health Check (`/health`)**: Executes `SELECT 1` ping queries. External pingers hit this endpoint every 5 minutes to prevent cold-start sleeps on free tier serverless hosting (Render, Neon, Aiven).
+* **CI/CD Pipeline (`.github/workflows/lint-test.yml`)**: Automated GitHub Actions workflow running Vitest unit tests, ESLint linting, and Prisma client generation on every push or pull request to `main`.
+
+---
+
+## 🛠️ 7. Chronological Engineering Improvements Log
+
+* **Category Analytics Optimization**: Replaced iterative sequential JS loops with PostgreSQL `groupBy` and `_sum` aggregations, reducing reporting latency to under 10ms.
+* **Payment Overlay Dismissal Handling**: Implemented client-side `modal.ondismiss` callbacks to reset loading spinners and alert users on payment modal close.
+* **Inclusive Date Calculation**: Corrected day arithmetic formula to include both start and end days inclusive, and enforced 18% GST calculation compliance.
+* **Single Database Engine Consolidation**: Consolidated dual DB usage (MongoDB + PostgreSQL) into a unified PostgreSQL schema managed via Prisma ORM.
+* **Stock Quantity Return Fix**: Fixed rental return handlers to dynamically increment `availableStock` by `rental.quantity` rather than a hardcoded `1`.

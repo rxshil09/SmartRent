@@ -61,7 +61,12 @@ const PaymentPage = () => {
         name: 'SmartRent',
         description: 'Rental Payment',
         order_id: data.orderId,
-        prefill: { name: user?.name, email: user?.email },
+        prefill: { 
+          name: user?.name, 
+          email: user?.email,
+          contact: (item?.deliveryAddress?.phoneNumber || item?.invoiceAddress?.phoneNumber || '')
+            .replace(/\D/g, '').slice(-10)
+        },
         modal: {
           ondismiss: () => {
             setError('Payment cancelled by user.');

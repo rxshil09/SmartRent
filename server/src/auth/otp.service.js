@@ -1,5 +1,4 @@
 import crypto from 'crypto';
-// Corrected: Changed to a default import (no curly braces)
 import NotificationsService from '../notifications/notifications.service.js';
 
 // In-memory OTP store (in production, use Redis or a database for better scalability)

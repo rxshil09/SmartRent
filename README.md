@@ -152,7 +152,10 @@ The repository includes a GitHub Actions CI workflow in `.github/workflows/lint-
 
 ## 📞 **Support & Documentation**
 
-Detailed guides are located inside the `docs/` folder:
-*   📖 **System Architecture Guide:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Monorepo structure, relations, CORS, and locking details.
-*   ⚙️ **Setup & Installation Guide:** [`docs/SETUP_GUIDE.md`](docs/SETUP_GUIDE.md) — Detailed environment variables and script definitions.
-*   🔌 **REST API & Postman Testing Guide:** [`docs/API_TESTING_GUIDE.md`](docs/API_TESTING_GUIDE.md) — Route body samples, Postman variable extractions, and token handling.
+Comprehensive technical guides are located inside the `docs/` folder:
+*   🏛️ **Master System Architecture:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — System design summary, financial formulas, and engineering log.
+*   📮 **REST API & Postman Testing Guide:** [`docs/POSTMAN_TESTING_GUIDE.md`](docs/POSTMAN_TESTING_GUIDE.md) — Route bodies, Postman variable scripts, and sequence flowcharts.
+*   📁 **Monorepo Architecture Guide:** [`docs/MONOREPO_ARCHITECTURE.md`](docs/MONOREPO_ARCHITECTURE.md) — Monorepo file tree, React SPA routes, and request flowcharts.
+*   🛠️ **Development & Scripts Guide:** [`docs/DEV_SCRIPTS_GUIDE.md`](docs/DEV_SCRIPTS_GUIDE.md) — Setup guide, database seeder scripts, and `.env` specifications.
+*   📊 **Database Schema & Concurrency Guide:** [`docs/DATABASE_SCHEMA_GUIDE.md`](docs/DATABASE_SCHEMA_GUIDE.md) — PostgreSQL ER diagram, stock state transitions flowchart, and SQL locking mechanics.
+

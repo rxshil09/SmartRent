@@ -107,7 +107,9 @@ const ReviewOrderPage = () => {
         prefill: {
           name: user?.name,
           email: user?.email,
-          contact: addressDetails.deliveryAddress.phoneNumber
+          contact: addressDetails?.deliveryAddress?.phoneNumber
+            ? addressDetails.deliveryAddress.phoneNumber.replace(/\D/g, '').slice(-10)
+            : ''
         },
         modal: {
           ondismiss: () => {

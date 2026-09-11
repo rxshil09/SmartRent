@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { prisma } from '../db/postgres.js';
 import { Prisma } from '@prisma/client';
 import { PDFService } from './pdf.service.js';
@@ -178,7 +179,7 @@ export const RentalsService = {
       return serializeOrder(order); // Already processed
     }
 
-    return await prisma.$transaction(async (tx) => {
+    const updatedOrder = await prisma.$transaction(async (tx) => {
       const existing = await tx.order.findUnique({
         where: { id: orderId }
       });
@@ -221,6 +222,16 @@ export const RentalsService = {
 
       return updated;
     });
+
+    // Send payment confirmation email asynchronously (do not block client response)
+    if (updatedOrder && updatedOrder.status === 'PAID') {
+      NotificationsService.sendPaymentConfirmation(updatedOrder.userEmail, {
+        transactionId: paymentId,
+        amount: Number(updatedOrder.totalAmount)
+      }).catch(err => console.error('Failed to send payment confirmation email:', err));
+    }
+
+    return updatedOrder;
   },
 
   // Release expired reservations (background cron job)
@@ -266,7 +277,20 @@ export const RentalsService = {
   },
   // Create a new rental
   async create(data) {
-    const { userId, userEmail, userName, productId, startDate, endDate, notes = '' } = data;
+    const { 
+      userId, 
+      userEmail, 
+      userName, 
+      productId, 
+      startDate, 
+      endDate, 
+      notes = '',
+      razorpayPaymentId,
+      razorpayOrderId,
+      razorpaySignature,
+      deliveryAddress,
+      deliveryMethod
+    } = data;
     
     // Check product availability
     const product = await prisma.product.findUnique({
@@ -288,16 +312,31 @@ export const RentalsService = {
     // Calculate rental details
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const totalDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-    
-    if (totalDays <= 0) {
-      throw new Error('End date must be after start date');
-    }
+    const totalDays = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1);
     
     const pricePerDay = Number(product.pricePerDay);
     const totalPrice = totalDays * pricePerDay;
     
-    // Create rental in transaction
+    // Verify Razorpay signature if provided
+    if (razorpayPaymentId && razorpayOrderId && razorpaySignature) {
+      const text = `${razorpayOrderId}|${razorpayPaymentId}`;
+      const expectedSignature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || '')
+        .update(text)
+        .digest('hex');
+
+      if (expectedSignature !== razorpaySignature) {
+        throw new Error('Invalid payment signature');
+      }
+    }
+
+    // Calculate totals for the parent Order
+    const subtotal = totalPrice;
+    const gstAmount = Math.round(subtotal * 0.18);
+    const deliveryFee = deliveryMethod === 'DELIVERY' ? 99 : 0;
+    const totalAmount = subtotal + gstAmount + deliveryFee;
+
+    // Create rental and parent order in transaction
     const rental = await prisma.$transaction(async (tx) => {
       // Decrease available stock
       await tx.product.update({
@@ -307,13 +346,36 @@ export const RentalsService = {
         }
       });
       
-      // Create rental
+      // Create parent Order
+      const parentOrder = await tx.order.create({
+        data: {
+          userId,
+          userEmail,
+          userName,
+          subtotal,
+          gstAmount,
+          deliveryFee,
+          totalAmount,
+          status: 'PAID',
+          razorpayPaymentId,
+          razorpayOrderId,
+          fulfillmentMethod: deliveryMethod || 'PICKUP',
+          addressLine1: deliveryAddress?.addressLine1 || null,
+          addressLine2: deliveryAddress?.addressLine2 || null,
+          city: deliveryAddress?.city || null,
+          state: deliveryAddress?.state || null,
+          pincode: deliveryAddress?.pincode || null,
+        }
+      });
+
+      // Create rental referencing parentOrder
       const newRental = await tx.rental.create({
         data: {
           userId,
           userEmail,
           userName,
           productId,
+          orderId: parentOrder.id,
           startDate: start,
           endDate: end,
           totalDays,
@@ -329,6 +391,14 @@ export const RentalsService = {
       
       return newRental;
     });
+
+    // Send payment confirmation email asynchronously (do not block client response)
+    if (rental && razorpayPaymentId) {
+      NotificationsService.sendPaymentConfirmation(userEmail, {
+        transactionId: razorpayPaymentId,
+        amount: totalAmount
+      }).catch(err => console.error('Failed to send payment confirmation email:', err));
+    }
     
     return serialize(rental);
   },

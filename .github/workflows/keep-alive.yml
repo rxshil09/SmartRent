@@ -1,0 +1,17 @@
+name: Keep SmartRent API & Aiven DB Alive
+
+on:
+  schedule:
+    # Runs every 1 hour (at minute 0 of every hour)
+    - cron: '0 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI
+
+jobs:
+  ping-smartrent:
+    name: Ping SmartRent Health Endpoint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Backend & Database
+        run: |
+          echo "Pinging SmartRent Northflank backend & Aiven database..."
+          curl -s -o /dev/null -w "HTTP Status: %{http_code} | Response Time: %{time_total}s\n" --max-time 120 https://site--smartrentbackend--kcqjsgt7k27q.code.run/health || true
